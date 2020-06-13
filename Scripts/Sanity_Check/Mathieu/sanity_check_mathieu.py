@@ -9,6 +9,7 @@ import torch
 import torch.distributions as dist
 from torch.distributions.utils import broadcast_all
 from numbers import Number
+import argparse
 
 
 class Sparse_torch(dist.Distribution):
@@ -319,10 +320,28 @@ def test_hoyer_for_n_inputs(n):
 
 
 if __name__ == '__main__':
-  #  test_mmd_component_for_n_inputs(5)
-  #  test_log_prob_for_n_inputs(5)
-   # test_kl_div_for_n_inputs(5)
-    test_hoyer_for_n_inputs(5)
+    print(tf.__version__)
+    descr = "Sanity check for implemented Mathieu et al. 2019 functions. In all experiments Tensorflow (GPU) 1.13.1 and python 3.5.1 were used."
+    epil  = "See:  [V. Prokhorov, Y. Li, E. Shareghi, N. Collier (EMNLP 2020)]"
+    parser = argparse.ArgumentParser(description=descr, epilog=epil)
+    parser.add_argument('--mmd_test', required=False, type=int,
+                         help='Third term of the objective function of Mathieu et al. 2019')
+    parser.add_argument('--log_prob_test', required=False, type=int,
+                         help='Log probability of Spike-and-Slab')
+    parser.add_argument('--kl_div_test', required=False, type=int,
+                         help='Second term of the objective function of Mathieu et al. 2019')
+    parser.add_argument('--hoyer_test', required=False, type=int,
+                         help='Hoyer of Mathieu et al. 2019')
+    args = parser.parse_args()
+
+    if args.mmd_test == 1:
+        test_mmd_component_for_n_inputs(5)
+    elif args.log_prob_test == 1:
+        test_log_prob_for_n_inputs(5)
+    elif args.kl_div_test == 1:
+        test_kl_div_for_n_inputs(5)
+    elif args.hoyer_test == 1:
+        test_hoyer_for_n_inputs(5)
 
 
 
