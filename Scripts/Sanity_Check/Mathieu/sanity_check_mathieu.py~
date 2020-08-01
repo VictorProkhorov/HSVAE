@@ -3,7 +3,7 @@ import math
 import numpy as np
 import tensorflow as tf
 print(tf.__version__)
-tf.compat.v1.enable_eager_execution()
+tf.enable_eager_execution()
 from tensorflow.python.ops import array_ops
 import torch
 import torch.distributions as dist
