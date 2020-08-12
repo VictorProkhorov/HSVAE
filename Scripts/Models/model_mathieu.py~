@@ -604,11 +604,7 @@ def compute_sparsity(zs, norm):
     '''
     latent_dim = float(zs.shape[-1].value)
     if norm:
-       # print('Norm')
-       # print(tf.math.reduce_std(zs, axis=0))
-       # print(zs)
         zs = zs / tf.math.reduce_std(zs, axis = 0)
-       # print(zs)
     l1 = tf.math.reduce_sum(tf.math.abs(zs), axis=-1)
     l2 = tf.math.sqrt(tf.math.reduce_sum(tf.math.pow(zs,2), axis=-1))
     l1_l2 = tf.math.reduce_mean(l1/l2)
@@ -639,8 +635,8 @@ def sparsity_in_batch(vae, data, gpu, norm=True, is_sample=False):
 
 if __name__ == "__main__":
     print(tf.__version__)
-    descr = "Tensorflow (Eager) implementation for beta-VAE model (Burgess et al. (2018): Understanding disentangling in beta-VAE). In all experiments Tensorflow (GPU) 1.12.0 and python 3. were used."
-    epil  = "See: On the Importance of the Kullback-Leibler Divergence Term in Variational Autoencoders for Text Generation [V. Prokhorov, E. Shareghi, Y. Li, M.T. Pilehvar, N. Collier (WNGT 2019)]"
+    descr = "Tensorflow (Eager) implementation of 'Disentangling Disentaglement in Variational Autoencoders by Mathieu et al (2019)'. In all experiments Tensorflow (GPU) 1.13.1 and python 3.5.1 were used."
+    epil  = "None"
     parser = argparse.ArgumentParser(description=descr, epilog=epil)
     
     parser.add_argument('--corpus', required=True, type=str, default='CBT' ,help='')
@@ -655,18 +651,7 @@ if __name__ == "__main__":
 
     is_load = False
 
-    # Yahoo (Figure 1)
-    #training_data_path = '../../Data/Yahoo/yahoo.train.txt'
-    #valid_data_path='../../Data/Yahoo/yahoo.valid.txt'
-    #vocab_path = '../../Data/Yahoo/vocab.txt'
-    
-
-    # CBT GEN (the res of the experiments)
-    
- #   training_data_path = '../../Data/Gen/CBT/train.unk.txt'
- #   valid_data_path='../../Data/Gen/CBT/valid.unk.txt'
- #   vocab_path = '../../Data/Gen/CBT/vocab.txt'
-    
+   
 #    training_data_path = '../../Data/New_DBPedia/train.txt'
 #    valid_data_path='../../Data/New_DBPedia/valid.txt'
  #   vocab_path = '../../Data/New_DBPedia/vocab.txt'
@@ -677,20 +662,13 @@ if __name__ == "__main__":
     valid_data_path = '../../Data/Yelp/yelp.valid_.txt'
     vocab_path = None
 
-    
-    # Wiki (Syntactic Experiment)
-  #  training_data_path = '../../Data/Wiki/wiki_train.txt'
-  #  valid_data_path = '../../Data/Wiki/wiki_valid.txt'
- #   vocab_path = '../../Data/Wiki/vocab.txt'  
-
     text_tensor, text_lang, mean_length_text = load_dataset(training_data_path, vocab_file=vocab_path)
     valid_text_tensor, _, _ = load_dataset(valid_data_path, 
     mean_length_text=mean_length_text, text_lang=text_lang, is_test_data=True)
-    #print(valid_text_tensor)
-   # text_tensor = text_tensor[:1000]
+    
     epochs = 15
     buffer_size = len(text_tensor)
-    # wiki batch size 256; webtext batch size: 256; CBT batch size 128
+
     batch_size =  256#512
     n_batch = math.ceil(buffer_size/batch_size)
     vocab_size = len(text_lang.word2idx)
@@ -707,13 +685,9 @@ if __name__ == "__main__":
     dataset = dataset.batch(batch_size, drop_remainder=False)
     
     # Set an optimiser #
-    #learning rate for the encoder dim 512 is 0.00085
-    #learning rate for the encoder dim 1024 is 0.00075
-    #for wiki lr is 0.00095
-    # CBT: 0.00075; Wiki:0.00065;WebText;0.00075
     optimizer = tf.train.AdamOptimizer(learning_rate=0.0008)
 
-    gamma = np.full((1,z_dim), 0.8) #np.random.choice([.2,.8], z_dim, p=[.5,.5] )#0.6
+    gamma = np.full((1,z_dim), 0.8)
 
     print('gamma', gamma)
     loc = np.full((1,z_dim), 0.)
@@ -762,11 +736,8 @@ if __name__ == "__main__":
 
     
     # Report NLL and Perplexity on the test data #
-    #test_data_path='../../Data/Gen/CBT/test.unk.txt'
-    
-    #test_data_path='../../Data/Yahoo/yahoo.test.txt'
+
     test_data_path = '../../Data/Yelp/yelp.test_.txt'
-   # test_data_path = '../../Data/Wiki/wiki_test.txt'
     
 #    test_data_path='../../Data/New_DBPedia/test.txt'
 
