@@ -1,6 +1,22 @@
 # [Hierarchical Sparse Variation Autoencoder (HSVAE)](https://aclanthology.org/2021.repl4nlp-1.5.pdf)
 This repository contains implementation of HSVAE model presente in "Learning Sparse Sentence Encoding without Supervision: An Exploration of Sparsity in Variational Autoencoders" paper.
 
+## Table of contents
+1. [Types of Sparsity](#types-of-sparsity)
+2. [Model](#model)
+3. [Usage](#usage)
+4. [Citing](#citing)
+5. [Licence](#licence)
+6. [Contact info](#contact-info)
+
+## Types of Sparsity 
+
+## Model
+![alt tag](Misc/HSAVE.pdf)
+
+## Usage
+
+
 ## Citing
 
 If you find this material useful in your research, please cite:
