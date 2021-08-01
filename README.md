@@ -12,7 +12,7 @@ This repository contains implementation of HSVAE model presente in "Learning Spa
 ## Types of Sparsity 
 
 ## Model
-![alt tag](./Misc/HSAVE.pdf)
+![alt tag](./Misc/HSAVE.png)
 
 ## Usage
 
