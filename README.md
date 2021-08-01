@@ -9,7 +9,8 @@ This repository contains implementation of HSVAE model presented in "Learning Sp
 5. [Licence](#licence)
 6. [Contact info](#contact-info)
 
-## Types of Sparsity 
+## Types of Sparsity
+In this paper we explore adaptive (a.k.a ephemeral(https://htor.inf.ethz.ch/publications/index.php?pub=407)) sparsity 
 ![alt tag](./Misc/types_of_sparsity.png)
 ## Model
 ![alt tag](./Misc/hsvae.png)
