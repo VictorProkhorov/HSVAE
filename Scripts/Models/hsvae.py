@@ -5,8 +5,6 @@ import time
 import glob
 import tensorflow as tf
 print(tf.__version__)
-tf.enable_eager_execution()
-tf.reset_default_graph()
 import pickle
 from tensorflow.keras import backend as K
 from tensorflow.keras import constraints
@@ -17,7 +15,8 @@ from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.util.tf_export import tf_export
-import tensorflow.contrib.eager as tfe
+import tensorflow_probability as tfp
+
 import numpy as np
 from scipy.linalg import orth
 import six
@@ -86,104 +85,10 @@ def create_dataset(path):
     
     with open(path, 'r') as f:
         lines = f.read().split('\n')
-    word_pairs = [preprocess_sentence(line.lstrip().rstrip()) for line in lines if len(line) > 0]
+    sentences = [preprocess_sentence(line.lstrip().rstrip()) for line in lines if len(line) > 0]
     
-    return word_pairs
+    return sentences
 
-
-def pad_sequences(sequences, maxlen=None, dtype='int32',
-                  padding='pre', truncating='pre', value=0., eos=1.):
-    """
-    Pads sequences to the same length.
-
-    This function transforms a list of
-    `num_samples` sequences (lists of integers)
-    into a 2D Numpy array of shape `(num_samples, num_timesteps)`.
-    `num_timesteps` is either the `maxlen` argument if provided,
-    or the length of the longest sequence otherwise.
-
-    Sequences that are shorter than `num_timesteps`
-    are padded with `value` at the end.
-
-    Sequences longer than `num_timesteps` are truncated
-    so that they fit the desired length.
-    The position where padding or truncation happens is determined by
-    the arguments `padding` and `truncating`, respectively.
-
-    Pre-padding is the default.
-
-    # Arguments
-        sequences: List of lists, where each element is a sequence.
-        maxlen: Int, maximum length of all sequences.
-        dtype: Type of the output sequences.
-            To pad sequences with variable length strings, you can use `object`.
-        padding: String, 'pre' or 'post':
-            pad either before or after each sequence.
-        truncating: String, 'pre' or 'post':
-            remove values from sequences larger than
-            `maxlen`, either at the beginning or at the end of the sequences.
-        value: Float or String, padding value.
-        eos = end of sentence index to end each sentence
-    # Returns
-        x: Numpy array with shape `(len(sequences), maxlen)`
-
-    # Raises
-        ValueError: In case of invalid values for `truncating` or `padding`,
-            or in case of invalid shape for a `sequences` entry.
-    """
-    if not hasattr(sequences, '__len__'):
-        raise ValueError('`sequences` must be iterable.')
-    lengths = []
-    for x in sequences:
-        if not hasattr(x, '__len__'):
-            raise ValueError('`sequences` must be a list of iterables. '
-                             'Found non-iterable: ' + str(x))
-        lengths.append(len(x))
-
-    num_samples = len(sequences)
-    if maxlen is None:
-        maxlen = np.max(lengths)
-
-    # take the sample shape from the first non empty sequence
-    # checking for consistency in the main loop below.
-    sample_shape = tuple()
-    for s in sequences:
-        if len(s) > 0:
-            sample_shape = np.asarray(s).shape[1:]
-            break
-
-    is_dtype_str = np.issubdtype(dtype, np.str_) or np.issubdtype(dtype, np.unicode_)
-    if isinstance(value, six.string_types) and dtype != object and not is_dtype_str:
-        raise ValueError("`dtype` {} is not compatible with `value`'s type: {}:\n"
-                         "You should set `dtype=object` for variable length strings."
-                         .format(dtype, type(value)))
-
-    x = np.full((num_samples, maxlen+1) + sample_shape, value, dtype=dtype)
-    for idx, s in enumerate(sequences):
-        if not len(s):
-            continue  # empty list/array was found
-        if truncating == 'pre':
-            trunc = s[-maxlen:]
-        elif truncating == 'post':
-            trunc = s[:maxlen] + [float(eos)]
-        else:
-            raise ValueError('Truncating type "%s" '
-                             'not understood' % truncating)
-
-        # check `trunc` has expected shape
-        trunc = np.asarray(trunc, dtype=dtype)
-        if trunc.shape[1:] != sample_shape:
-            raise ValueError('Shape of sample %s of sequence at position %s '
-                             'is different from expected shape %s' %
-                             (trunc.shape[1:], idx, sample_shape))
-
-        if padding == 'post':
-            x[idx, :len(trunc)] = trunc
-        elif padding == 'pre':
-            x[idx, -len(trunc):] = trunc
-        else:
-            raise ValueError('Padding type "%s" not understood' % padding)
-    return x
 
 
 
@@ -192,8 +97,7 @@ def get_vocab(vocab_file):
     vocab = set()
     with open(vocab_file, 'r') as f:
         for idx,word in enumerate(f):
-           # if not word.rstrip():
-           #     print ('hi', word, idx+1)
+           
             word = word.rstrip()
             vocab.add(word)
     return vocab
@@ -216,9 +120,8 @@ def load_dataset(path, mean_length_text=None, text_lang=None, is_test_data=False
     
    
     # text definitions of concepts
-   # unk = '<unk>'
     unk = '_UNK'
-    text_tensor = [[text_lang.word2idx[word] if word in text_lang.word2idx else text_lang.word2idx[unk] for word in txt.split(' ')] for txt in sentences]
+    text_tensor = [[text_lang.word2idx[word] if word in text_lang.word2idx else text_lang.word2idx[unk] for word in sentence.split(' ')+['<EOS>']] for sentence in sentences]
     
     
     def max_length(tensor):
@@ -227,11 +130,12 @@ def load_dataset(path, mean_length_text=None, text_lang=None, is_test_data=False
     max_length_text = max_length(text_tensor)
 
     # Padding the input and output tensor to the maximum length
-    text_tensor = pad_sequences(text_tensor, maxlen=max_length_text, padding='post', truncating='post', eos=text_lang.word2idx['<EOS>'])
     
-    max_length_text = max_length_text + 1 # add one to compensate for <EOS>
+    text_tensor = tf.keras.preprocessing.sequence.pad_sequences(text_tensor, maxlen=max_length_text, padding='post', truncating='post')
+
     print('the longest sentence is of N symbols:', max_length_text)
     return text_tensor, text_lang, max_length_text 
+
 
 
 #### MODELS ####
@@ -249,22 +153,9 @@ def last_relevant(output, length):
 
 
 
-def log_sum_exp(value, dim=None):
-    """Numerically stable implementation of the operation
-    value.exp().sum(dim, keepdim).log()
-    """
-    #print('value', value.shape)
-    m = tf.keras.backend.max(value, axis = dim, keepdims=True)
-  
-    value0 = value - m
-  
-    log_qz = tf.math.log(tf.reduce_sum(tf.keras.backend.exp(value0), axis=dim, keepdims=True))
-  
-    
-    return m + log_qz
 
 
-class Sparse(tf.distributions.Distribution):
+class Sparse(tfp.distributions.Distribution):
     
     def mean(self):
       #  for 1 sample only !
@@ -279,13 +170,13 @@ class Sparse(tf.distributions.Distribution):
     def __init__(self, gamma, loc, scale):
         self._name = 'Spike-and-Slab Dist'
         self.gamma = tf.convert_to_tensor(gamma, dtype=np.float32)
-        self.alpha = tf.constant(0.05, dtype=np.float32)
+        self.alpha = tf.constant(0.0005, dtype=np.float32)
 
         self.loc = tf.convert_to_tensor(loc, dtype=np.float32)
         self.scale = tf.convert_to_tensor(scale, dtype=np.float32)
         super(Sparse, self).__init__(name=self._name,
                 dtype=self.scale.dtype,
-                reparameterization_type=tf.distributions.FULLY_REPARAMETERIZED,
+                reparameterization_type=tfp.distributions.FULLY_REPARAMETERIZED,
                 validate_args=False,
                 allow_nan_stats=False)
 
@@ -294,7 +185,7 @@ class Sparse(tf.distributions.Distribution):
     
     @staticmethod
     def sample_logistic(shape, eps=1e-20):
-        U = tf.random_uniform(shape, minval=0, maxval=1)
+        U = tf.random.uniform(shape, minval=0, maxval=1)
         return tf.math.log(U+eps) - tf.math.log1p(-U+eps)
     
     
@@ -303,13 +194,13 @@ class Sparse(tf.distributions.Distribution):
         L = self.sample_logistic(shape, eps=eps)
         scale = tf.math.reciprocal(temperature)
 
-        logits =  tf.math.log(probs+eps) - tf.math.log1p(-probs+eps) # convert probability to logits
+        logits =  tf.math.log(probs+eps) - tf.math.log1p(-probs+eps) # convert probability to logits; Note 'eps' is important for stability
         sample = logits + L
         sample = tf.math.sigmoid(sample*scale)
         if hard:
-            result = tf.where(sample <= 0.5,  tf.zeros_like(sample),  tf.ones_like(sample))
+            result = tf.where(sample < 0.5,  tf.zeros_like(sample),  tf.ones_like(sample))
             sample = tf.stop_gradient(result-sample)+sample
-       # print('sample',sample)
+    
         return sample
     
     def straight_through(self):
@@ -327,11 +218,18 @@ class Sparse(tf.distributions.Distribution):
   
    
     def log_prob(self, value):
-        res = tf.concat([tf.expand_dims((tf.distributions.Normal(loc=0.0, scale=self.alpha).log_prob(value) + tf.math.log(self.gamma+1e-5)), 0),\
-            tf.expand_dims((tf.distributions.Normal(loc=self.loc, scale=self.scale).log_prob(value) + tf.math.log(1-self.gamma+1e-5)), 0)], axis=0)
+        res = tf.concat([tf.expand_dims((tfp.distributions.Normal(loc=0.0, scale=self.alpha).log_prob(value) + tf.math.log(self.gamma+1e-5)), 0),\
+            tf.expand_dims((tfp.distributions.Normal(loc=self.loc, scale=self.scale).log_prob(value) + tf.math.log(1-self.gamma+1e-5)), 0)], axis=0)
         
         res= tf.math.reduce_logsumexp(res, 0)
         return res
+
+
+
+
+
+
+
 
 
        
@@ -347,17 +245,17 @@ class Encoder(tf.keras.Model):
         self.pz_loc = np.full((1, z_dim), 0.)
         self.pz_scale = np.full((1, z_dim), 1.)     
         
-        self.p_alpha = [alpha]*z_dim # 30
-        self.p_beta = [beta]*z_dim #10
+        self.p_alpha = [[alpha]*z_dim] # 30
+        self.p_beta = [[beta]*z_dim] #10
         print("prior alpha", alpha)
         print("prior beta", beta)
-        self.p_gamma = tf.distributions.Beta(self.p_alpha, self.p_beta)
+        self.p_gamma = tfp.distributions.Beta(self.p_alpha, self.p_beta)
         print('prior over gamma', self.p_gamma)
         
         # variational parameters 
         self.rnn = self._init_rnn(rnn_dim)
         self.mean = tf.keras.layers.Dense(z_dim, activation='linear')
-        self.log_var = tf.keras.layers.Dense(z_dim, activation='linear')
+        self.std = tf.keras.layers.Dense(z_dim, activation='softplus')
         self.q_alpha = tf.keras.layers.Dense(z_dim, activation='softplus')
         self.q_beta = tf.keras.layers.Dense(z_dim, activation='softplus')
         
@@ -371,21 +269,21 @@ class Encoder(tf.keras.Model):
     
     def call(self, x, embeddings, temperature):
         outputs = self.rnn(embeddings)
-        original_sentences_length = tf.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
+        original_sentences_length = tf.math.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
         output = last_relevant(outputs, original_sentences_length)
         
         
         
         q_alpha = self.q_alpha(output)+1e-5 
         q_beta = self.q_beta(output) +1e-5
+        
         mean = self.mean(output)
-        log_var = self.log_var(output)
-        std = tf.math.exp(0.5*log_var) + 1e-5
-        q_gamma_x = tf.distributions.Beta(q_alpha, q_beta)
-        with tf.device('cpu'):
-            gamma = q_gamma_x.sample(1)
+        std = self.std(output)
     
-        kl_gamma = tf.distributions.kl_divergence(q_gamma_x, self.p_gamma)
+        q_gamma_x = tfp.distributions.Beta(q_alpha, q_beta)
+        gamma = q_gamma_x.sample(1)
+    
+        kl_gamma = tfp.distributions.kl_divergence(q_gamma_x, self.p_gamma)
         kl_gamma = tf.math.reduce_mean(tf.math.reduce_sum(kl_gamma, axis=-1), axis=0)
 
 
@@ -475,19 +373,19 @@ class Sentence_VAE(tf.keras.Model):
     def get_zs(self, x, temperature, is_sample=False, is_sp=False):
         embeddings = self.embeddings(x)
         outputs = self.encoder.rnn(embeddings)
-        original_sentences_length = tf.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
+        original_sentences_length = tf.math.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
         output = last_relevant(outputs, original_sentences_length)
         
         q_alpha = self.encoder.q_alpha(output)
         q_beta = self.encoder.q_beta(output)
         mean = self.encoder.mean(output)
-        log_var = self.encoder.log_var(output)
-        std = tf.math.exp(0.5*log_var)
+        std = self.encoder.std(output)
+
         # distributions over gamma
         if is_sample and not is_sp:
-            q_gamma_x = tf.distributions.Beta(q_alpha, q_beta)
-            with tf.device('cpu'):
-                gamma = q_gamma_x.sample(1)
+            q_gamma_x = tfp.distributions.Beta(q_alpha, q_beta)
+            
+            gamma = q_gamma_x.sample(1)
             gamma = tf.squeeze(gamma, axis = 0)
             # distributions over z
             pz_gamma = Sparse(gamma, self.encoder.pz_loc, self.encoder.pz_scale) 
@@ -500,9 +398,9 @@ class Sentence_VAE(tf.keras.Model):
             zs = tf.squeeze(zs, axis=0)
             return zs
         elif not is_sample and is_sp:
-            q_gamma_x = tf.distributions.Beta(q_alpha, q_beta)
-            with tf.device('cpu'):
-                gamma = q_gamma_x.sample(1)
+            q_gamma_x = tfp.distributions.Beta(q_alpha, q_beta)
+            
+            gamma = q_gamma_x.sample(1)
            # gamma = tf.squeeze(gamma, axis = 0)
             # distributions over z
             qz_x_gamma = Sparse(gamma, mean, std) 
@@ -518,7 +416,7 @@ class Sentence_VAE(tf.keras.Model):
     def get_alpha_beta_params(self, x):
         embeddings = self.embeddings(x)
         outputs = self.encoder.rnn(embeddings)
-        original_sentences_length = tf.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
+        original_sentences_length = tf.math.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
         output = last_relevant(outputs, original_sentences_length)
         
         q_alpha = self.encoder.q_alpha(output)
@@ -528,53 +426,44 @@ class Sentence_VAE(tf.keras.Model):
     def get_mean_of_beta_distribution(self, x):
         embeddings = self.embeddings(x)
         outputs = self.encoder.rnn(embeddings)
-        original_sentences_length = tf.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
+        original_sentences_length = tf.math.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
         output = last_relevant(outputs, original_sentences_length)
         
         q_alpha = self.encoder.q_alpha(output)
         q_beta = self.encoder.q_beta(output)
-        q_gamma_x = tf.distributions.Beta(q_alpha, q_beta)
+        q_gamma_x = tfp.distributions.Beta(q_alpha, q_beta)
         return q_gamma_x.mean()
 
     def sample_k_zs(self, x, temperature, n_samples=5):
         embeddings = self.embeddings(x)
         outputs = self.encoder.rnn(embeddings)
-        original_sentences_length = tf.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
+        original_sentences_length = tf.math.count_nonzero(x, 1, keepdims=False, dtype=tf.int32)
         output = last_relevant(outputs, original_sentences_length)
         
         q_alpha = self.encoder.q_alpha(output)
         q_beta = self.encoder.q_beta(output)
         mean = self.encoder.mean(output)
-        log_var = self.encoder.log_var(output)
-        std = tf.math.exp(0.5*log_var)
+        std = self.encoder.std(output)
         # distributions over gamma
-        q_gamma_x = tf.distributions.Beta(q_alpha, q_beta)
-        with tf.device('cpu'):
-            gamma = q_gamma_x.sample(n_samples)
-        
-            # distributions over z 
-    #    print('gamma', gamma)
+        q_gamma_x = tfp.distributions.Beta(q_alpha, q_beta)
+        gamma = q_gamma_x.sample(n_samples)
         qz_x_gamma = Sparse(gamma, mean, std) 
         zs = qz_x_gamma.sample(n_samples, temperature) 
-        #print('zs', zs)
         return zs
         
 
 
 
 
-global_step = tf.train.get_or_create_global_step()
 
-
-def train(epochs, buffer_size, vae, dataset, optimizer, text_lang, n_batch, checkpoint, valid_data, target_temperature ,gpu=None):
-    device =gpu 
+def train(epochs, buffer_size, vae, dataset, optimizer, text_lang, n_batch, checkpoint_vae, checkpoint_prefix_vae, valid_data, target_temperature, device=None):
    
     valid_dataset = tf.data.Dataset.from_tensor_slices(valid_data).shuffle(len(valid_data))
     valid_batch_size = 128
     valid_dataset = valid_dataset.batch(valid_batch_size, drop_remainder=False)
     annealing_initial_step = 0.
+    
     for epoch in range(1, epochs + 1):
-        global_step.assign_add(1)
         start = time.time()
         total_rec_loss = 0.
         total_kl_z_loss = 0. 
@@ -590,62 +479,67 @@ def train(epochs, buffer_size, vae, dataset, optimizer, text_lang, n_batch, chec
     
                 variables = vae.trainable_variables 
                 gradients = tape.gradient(loss, variables)
-                optimizer.apply_gradients(zip(gradients, variables), global_step)
+                optimizer.apply_gradients(zip(gradients, variables))
     
             batch_loss = loss 
             total_rec_loss += tf.reduce_mean(rec_loss) 
             total_kl_z_loss += kl_z
             total_kl_gamma_loss += kl_gamma
             if batch % 100 == 0:
-                print('Epoch {} Batch {} Train Loss {:.4f}'.format(epoch, batch, batch_loss.numpy()))
+                    print('Epoch {} Batch {} Train Loss {:.4f}'.format(epoch, batch, batch_loss.numpy()))
                 
     
         print('Epoch {}, Recon. Loss {:.4f},  KL Gamma {:.4f}, KL Z {:.4f}'.format(epoch, total_rec_loss/n_batch,  total_kl_gamma_loss/n_batch, total_kl_z_loss/n_batch ))
 
+        
 
             
         if epoch % 1  == 0 or epoch == 1:
             with tf.device(device):
-                valid_rec_loss, valid_reg_gamma_loss, valid_reg_z_loss = evaluate_nnl_and_ppl_batch(valid_dataset, vae, text_lang, target_temperature)
+                valid_rec_loss, valid_reg_gamma_loss, valid_reg_z_loss = evaluate_nnl_and_kls_batch(valid_dataset, vae, text_lang, target_temperature)
 
             is_sample = True
             norm = True
             is_sp =False
             hoyer_norm_sample = sparsity_in_batch(vae, valid_dataset, device, target_temperature, norm=norm,is_sample=is_sample, is_sp=is_sp)
-            print('sample: sparsity with std norm:', hoyer_norm_sample)
+            # note normalisation by std allows us to test of the model learns adaptive sparsity
+            print('sample from spike-and-slab: sparsity with std norm:', hoyer_norm_sample)
             norm = False
             hoyer_sample = sparsity_in_batch(vae, valid_dataset, device, target_temperature, norm=norm, is_sample=is_sample, is_sp = is_sp)
-            print('sample: sparsity without std norm:', hoyer_sample)
+            print('sample from spike-and-slab: sparsity without std norm:', hoyer_sample)
             
             is_sample = False
             is_sp =False
             norm = True
             hoyer_norm_mean = sparsity_in_batch(vae, valid_dataset, device, target_temperature, norm=norm,is_sample=is_sample, is_sp=is_sp)
-            print('mean: sparsity with std norm:', hoyer_norm_mean)
+            print('mean of slab component: sparsity with std norm:', hoyer_norm_mean)
             norm = False
             hoyer_mean = sparsity_in_batch(vae, valid_dataset, device, target_temperature, norm=norm, is_sample=is_sample, is_sp=is_sp)
-            print('mean: sparsity without std norm:', hoyer_mean)
+            print('mean of slab component: sparsity without std norm:', hoyer_mean)
                 
             is_sample = False
             is_sp =True
             norm = True
             hoyer_norm_sp_mean = sparsity_in_batch(vae, valid_dataset, device, target_temperature, norm=norm,is_sample=is_sample, is_sp=is_sp)
-            print('sp mean: sparsity with std norm:', hoyer_norm_sp_mean)
+            print('mean of spike-and-slab: sparsity with std norm:', hoyer_norm_sp_mean)
             norm = False
             hoyer_sp_mean = sparsity_in_batch(vae, valid_dataset, device, target_temperature, norm=norm, is_sample=is_sample, is_sp=is_sp)
-            print('sp mean: sparsity without std norm:', hoyer_sp_mean)
+            print('mean of spike-and-slab: sparsity without std norm:', hoyer_sp_mean)
                 
+            
+               
 
-        print('Epoch {}; Valid Rec Loss {:.4f};  Valid Gamma KL-loss {:.4f}; Valid Z KL-loss {:.4f} '.format(epoch,valid_rec_loss, valid_reg_gamma_loss, valid_reg_z_loss))
-                
+            print('Epoch {}; Valid Rec Loss {:.4f};  Valid Gamma KL-loss {:.4f}; Valid Z KL-loss {:.4f} '.format(epoch,valid_rec_loss, valid_reg_gamma_loss, valid_reg_z_loss))
+            
         print('Time taken for 1 epoch {} sec\n'.format(time.time() - start))
- 
+        
+
 
 
 #### BASIC EVALUATION ####
 
 
-def evaluate_nnl_and_ppl_batch(data, vae, text_lang, temperature, is_random_evaluate=False):
+def evaluate_nnl_and_kls_batch(data, vae, text_lang, temperature, is_random_evaluate=False):
 
     valid_rec_loss = 0.
     valid_reg_gamma_loss = 0.
@@ -672,7 +566,7 @@ def compute_sparsity(zs, norm):
     Hoyer metric
     norm: normalise input along dimension to avoid that dimension collapse leads to good sparsity
     '''
-    latent_dim = float(zs.shape[-1].value)
+    latent_dim = float(zs.shape[-1])
     if norm:
         zs = zs / tf.math.reduce_std(zs, axis = 0)
     
@@ -696,8 +590,6 @@ def sparsity_in_batch(vae, data, gpu, temperature, norm=True, is_sample=False, i
                 z_prev =z
     
         
-    print('z shape', z_prev.shape)
-    print('z:', z_prev)
     return compute_sparsity(tf.convert_to_tensor(z_prev), norm=norm)
 
 
@@ -706,7 +598,7 @@ def sparsity_in_batch(vae, data, gpu, temperature, norm=True, is_sample=False, i
 
 if __name__ == "__main__":
     print(tf.__version__)
-    descr = "Tensorflow (Eager) implementation for HSVAE   In all experiments Tensorflow (GPU) 1.13.1 and python 3.5.1 were used."
+    descr = "Tensorflow (Eager) implementation for HSVAE   In all experiments Tensorflow (GPU) 2.3.0 and python 3.8.5 were used."
     epil  = "None"
     parser = argparse.ArgumentParser(description=descr, epilog=epil)
     parser.add_argument('--z_reg_weight', required=True, type=float, default=1. ,help='weight (psi) of  the first KL term')
@@ -715,31 +607,29 @@ if __name__ == "__main__":
     parser.add_argument('--alpha', required=True, type=float, default=30. ,help='alpha parameter of the Beta (prior) distribution')
     parser.add_argument('--beta', required=True, type=float, default=30. ,help='beta parameter of the Beta (prior) distribution')
     parser.add_argument('--iter', required=True, type=int, default=1 ,help='run of the model')
-    parser.add_argument('--corpus', required=True, type=str, default='DBpedia' ,help='Name of a corpus')
 
     args = parser.parse_args()
-    corpus = args.corpus 
     is_load = False
    
-    training_data_path = '../Data/New_DBPedia/train.txt'
-    valid_data_path='../Data/New_DBPedia/valid.txt'
-    vocab_path = '../Data/New_DBPedia/vocab.txt'
+    training_data_path = '../Data/New_Yahoo/train.txt'
+    valid_data_path='../Data/New_Yahoo/valid.txt'
+    vocab_path = '../Data/New_Yahoo/vocab.txt'
+    
     
 
 
     text_tensor, text_lang, mean_length_text = load_dataset(training_data_path, vocab_file=vocab_path)
-    valid_text_tensor, _, _ = load_dataset(valid_data_path, 
-    mean_length_text=mean_length_text, text_lang=text_lang, is_test_data=True)
+    valid_text_tensor, _, _ = load_dataset(valid_data_path, mean_length_text=mean_length_text, text_lang=text_lang, is_test_data=True)
     
     epochs = 15
     buffer_size = len(text_tensor)
-    batch_size = 512
+    batch_size = 256
     n_batch = math.ceil(buffer_size/batch_size)
     vocab_size = len(text_lang.word2idx)
     print('vocab size:', vocab_size)
     embedding_dim = 256
     encoder_dim = 512
-    z_dim =  32#16
+    z_dim = 768
     z_reg_weight = args.z_reg_weight
     gamma_reg_weight = args.gamma_reg_weight
     target_temperature = args.temperature
@@ -751,7 +641,7 @@ if __name__ == "__main__":
     dataset = dataset.batch(batch_size, drop_remainder=False)
     
     # Set an optimiser #
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.0008)
+    optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=0.0008)
 
 
     iteration = args.iter
@@ -759,31 +649,27 @@ if __name__ == "__main__":
     gpu = '/gpu:0'
     # Creating the Model #
     vae = Sentence_VAE(embedding_dim, vocab_size, encoder_dim, z_dim, z_reg_weight, gamma_reg_weight, beta, alpha)
-    name_of_experiment ='none_1' # z_dim was not added when trained with 16 dims 
+    name_of_experiment ='Sparse_VAE_GRU_alpha_'+str(alpha)+'_beta_'+str(beta)+'_temperature_'+str(target_temperature)+'_z_reg_'+str(z_reg_weight)+'_gamma_reg_'+str(gamma_reg_weight)+'_z_dim_'+str(z_dim) # z_dim was not added when trained with 16 dims 
     # Save Model #
-    checkpoint_dir = 'none_2'
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-    checkpoint = tfe.Checkpoint(optimizer=optimizer,
-                                 vae=vae,
-                                 optimizer_step=tf.train.get_or_create_global_step())
-    experiment_dir = './model'
+    checkpoint_dir_vae = '../../Data/Trained_Models/'+ name_of_experiment+'_iter_'+str(iteration)
+
+    checkpoint_prefix_vae = os.path.join(checkpoint_dir_vae, "ckpt")
+    checkpoint_vae = tf.train.Checkpoint(optimizer=optimizer,vae=vae)
     
-    
-    
+   
 
 
     # Select between loading the loading an existing Model and training a new model #
     if is_load == True:
-        load_path = tf.train.latest_checkpoint(checkpoint_dir)
+        load_path = tf.train.latest_checkpoint(checkpoint_dir_vae)
         print('load path', load_path)
-        load = checkpoint.restore(load_path)
+        load = checkpoint_vae.restore(load_path)
     else:
-        train(epochs, buffer_size ,vae, dataset, optimizer, text_lang, n_batch, checkpoint, valid_text_tensor, target_temperature, gpu=gpu)
-    
-    test_data_path='../Data/New_DBPedia/test.txt'
+        train(epochs, buffer_size ,vae, dataset, optimizer, text_lang, n_batch, checkpoint_vae,checkpoint_prefix_vae, valid_text_tensor, target_temperature, device=gpu)
 
-    test_data, _, _ = load_dataset(test_data_path, 
-    mean_length_text=mean_length_text, text_lang=text_lang, is_test_data=True)
+
+    test_data_path='../Data/New_Yahoo/test.txt'
+    test_data, _, _ = load_dataset(test_data_path, mean_length_text=mean_length_text, text_lang=text_lang, is_test_data=True)
 
     test_dataset = tf.data.Dataset.from_tensor_slices(test_data)
     test_batch_size = 128
@@ -793,7 +679,7 @@ if __name__ == "__main__":
             
 
     with tf.device(gpu):
-        test_rec_loss, test_reg_gamma_loss, test_reg_z_loss = evaluate_nnl_and_ppl_batch(test_dataset, vae, text_lang, target_temperature)
+        test_rec_loss, test_reg_gamma_loss, test_reg_z_loss = evaluate_nnl_and_kls_batch(test_dataset, vae, text_lang, target_temperature)
 
 
     print('BATCH: Test Rec Loss {:.4f};  Test KL-loss z {:.4f}, Test KL-loss Gamma {:.4f}'.format(test_rec_loss, test_reg_z_loss, test_reg_gamma_loss))
