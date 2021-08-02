@@ -20,8 +20,8 @@ To train a new model:
 ```
 python3 hsvae.py --z_reg_weight 0.01 --gamma_reg_weight 0.01 --temperature 0.5  --alpha 4  --beta 1 --iter 1
 ```
---z_reg_weight is the weight of the second term of the ELBO
---gamma_reg_weight is the weight of the third term of the ELBO
+--z_reg_weight is the weight of the second term of the ELBO <br />
+--gamma_reg_weight is the weight of the third term of the ELBO <br />
 Adjust --alpha and --beta to achive the desired level of sparsity. Consult the paper for more information.
 
 ## Citing
