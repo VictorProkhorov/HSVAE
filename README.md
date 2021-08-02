@@ -4,7 +4,7 @@ This repository contains an implementation of HSVAE model presented in the "Lear
 ## Table of contents
 1. [Types of Sparsity](#types-of-sparsity)
 2. [Model](#model)
-3. [Usage: HSVAE](#usage:-hsvae)
+3. [HSVAE usage](#hsvae-usage)
 4. [Usage: MAT-VAE](#usage:-mat-vae)
 5. [Citing](#citing)
 6. [Licence](#licence)
@@ -16,7 +16,7 @@ In this paper we explore adaptive (a.k.a [ephemeral](https://htor.inf.ethz.ch/pu
 ## Model
 ![alt tag](./Misc/hsvae.png)
 
-## Usage: HSVAE
+## HSVAE usage
 To train a new HSAVE model:
 ```
 $ cd ./Scripts/Models/
