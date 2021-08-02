@@ -4,10 +4,11 @@ This repository contains an implementation of HSVAE model presented in the "Lear
 ## Table of contents
 1. [Types of Sparsity](#types-of-sparsity)
 2. [Model](#model)
-3. [Usage](#usage)
-4. [Citing](#citing)
-5. [Licence](#licence)
-6. [Contact info](#contact-info)
+3. [Usage: HSVAE](#usage:-hsvae)
+4. [Usage: MAT-VAE](#usage:-mat-vae)
+5. [Citing](#citing)
+6. [Licence](#licence)
+7. [Contact info](#contact-info)
 
 ## Types of Sparsity
 In this paper we explore adaptive (a.k.a [ephemeral](https://htor.inf.ethz.ch/publications/index.php?pub=407)) sparsity:
@@ -15,14 +16,29 @@ In this paper we explore adaptive (a.k.a [ephemeral](https://htor.inf.ethz.ch/pu
 ## Model
 ![alt tag](./Misc/hsvae.png)
 
-## Usage
-To train a new model:
+## Usage: HSVAE
+To train a new HSAVE model:
+```
+$ cd ./Scripts/Models/
+```
+then run:
 ```
 python3 hsvae.py --z_reg_weight 0.01 --gamma_reg_weight 0.01 --temperature 0.5  --alpha 4  --beta 1 --iter 1
 ```
 --z_reg_weight is the weight of the second term of the ELBO <br />
 --gamma_reg_weight is the weight of the third term of the ELBO <br />
 Adjust --alpha and --beta to achive the desired level of sparsity. Consult the paper for more information.
+
+## Usage: MAT-VAE
+To train a new MAT-VAE model:
+```
+$ cd ./Scripts/Models/
+```
+then run:
+```
+python3 mat_vae.py  --alpha 4  --beta 1 --iter 1
+```
+Adjust --alpha (weight on the third term of the ELBO) and --beta (weight on the second term of the ELBO) to achive the desired level of sparsity. Consult the paper for more information.
 
 ## Citing
 

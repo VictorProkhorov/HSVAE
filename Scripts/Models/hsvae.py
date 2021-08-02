@@ -3,9 +3,14 @@ import sys
 import math
 import time
 import glob
+import pickle
+import numpy as np
+from scipy.linalg import orth
+import six
+import argparse
+
 import tensorflow as tf
 print(tf.__version__)
-import pickle
 from tensorflow.keras import backend as K
 from tensorflow.keras import constraints
 from tensorflow.keras import initializers
@@ -16,13 +21,9 @@ from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.util.tf_export import tf_export
 import tensorflow_probability as tfp
-
-import numpy as np
-from scipy.linalg import orth
-import six
 from tensorflow.python.ops import array_ops
-import argparse
-#np.set_printoptions(threshold=sys.maxsize)
+
+
 
 # many parts of the code were taken from https://github.com/tensorflow/tensorflow/blob/r1.13/tensorflow/contrib/eager/python/examples/nmt_with_attention/nmt_with_attention.ipynb
 
@@ -170,7 +171,7 @@ class Sparse(tfp.distributions.Distribution):
     def __init__(self, gamma, loc, scale):
         self._name = 'Spike-and-Slab Dist'
         self.gamma = tf.convert_to_tensor(gamma, dtype=np.float32)
-        self.alpha = tf.constant(0.0005, dtype=np.float32)
+        self.alpha = tf.constant(0.05, dtype=np.float32)
 
         self.loc = tf.convert_to_tensor(loc, dtype=np.float32)
         self.scale = tf.convert_to_tensor(scale, dtype=np.float32)
@@ -391,7 +392,6 @@ class Sentence_VAE(tf.keras.Model):
             pz_gamma = Sparse(gamma, self.encoder.pz_loc, self.encoder.pz_scale) 
             qz_x_gamma = Sparse(gamma, mean, std) 
         
-            # losses
             # for now assume one sample of gamma
             # sample here
             zs = qz_x_gamma.sample(1, temperature) 
@@ -461,7 +461,7 @@ def train(epochs, buffer_size, vae, dataset, optimizer, text_lang, n_batch, chec
     valid_dataset = tf.data.Dataset.from_tensor_slices(valid_data).shuffle(len(valid_data))
     valid_batch_size = 128
     valid_dataset = valid_dataset.batch(valid_batch_size, drop_remainder=False)
-    annealing_initial_step = 0.
+    
     
     for epoch in range(1, epochs + 1):
         start = time.time()
@@ -471,7 +471,6 @@ def train(epochs, buffer_size, vae, dataset, optimizer, text_lang, n_batch, chec
         dataset = dataset.shuffle(buffer_size)
         for (batch, sentences) in enumerate(dataset):
             batch_size = sentences.shape[0]
-            annealing_initial_step += 1.
             with tf.device(device):
                 with tf.GradientTape() as tape:
                     rec_loss, kl_gamma, kl_z = vae(sentences, batch_size, text_lang,target_temperature)
@@ -598,7 +597,7 @@ def sparsity_in_batch(vae, data, gpu, temperature, norm=True, is_sample=False, i
 
 if __name__ == "__main__":
     print(tf.__version__)
-    descr = "Tensorflow (Eager) implementation for HSVAE   In all experiments Tensorflow (GPU) 2.3.0 and python 3.8.5 were used."
+    descr = "Tensorflow (Eager) implementation of HSVAE model. In all experiments Tensorflow (GPU) 2.3.0 and python 3.8.5 were used."
     epil  = "None"
     parser = argparse.ArgumentParser(description=descr, epilog=epil)
     parser.add_argument('--z_reg_weight', required=True, type=float, default=1. ,help='weight (psi) of  the first KL term')
@@ -651,7 +650,7 @@ if __name__ == "__main__":
     vae = Sentence_VAE(embedding_dim, vocab_size, encoder_dim, z_dim, z_reg_weight, gamma_reg_weight, beta, alpha)
     name_of_experiment ='Sparse_VAE_GRU_alpha_'+str(alpha)+'_beta_'+str(beta)+'_temperature_'+str(target_temperature)+'_z_reg_'+str(z_reg_weight)+'_gamma_reg_'+str(gamma_reg_weight)+'_z_dim_'+str(z_dim) # z_dim was not added when trained with 16 dims 
     # Save Model #
-    checkpoint_dir_vae = '../../Data/Trained_Models/'+ name_of_experiment+'_iter_'+str(iteration)
+    checkpoint_dir_vae = '../Data/Trained_Models/'+ name_of_experiment+'_iter_'+str(iteration)
 
     checkpoint_prefix_vae = os.path.join(checkpoint_dir_vae, "ckpt")
     checkpoint_vae = tf.train.Checkpoint(optimizer=optimizer,vae=vae)
