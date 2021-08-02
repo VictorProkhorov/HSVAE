@@ -94,8 +94,7 @@ def get_vocab(vocab_file):
     vocab = set()
     with open(vocab_file, 'r') as f:
         for idx,word in enumerate(f):
-           # if not word.rstrip():
-           #     print ('hi', word, idx+1)
+           
             word = word.rstrip()
             vocab.add(word)
     return vocab
