@@ -5,7 +5,7 @@ This repository contains an implementation of HSVAE model presented in the "Lear
 1. [Types of Sparsity](#types-of-sparsity)
 2. [Model](#model)
 3. [HSVAE usage](#hsvae-usage)
-4. [Usage: MAT-VAE](#usage:-mat-vae)
+4. [MAT-VAE usage](#mat-vae-usage)
 5. [Citing](#citing)
 6. [Licence](#licence)
 7. [Contact info](#contact-info)
@@ -29,7 +29,7 @@ python3 hsvae.py --z_reg_weight 0.01 --gamma_reg_weight 0.01 --temperature 0.5  
 --gamma_reg_weight is the weight of the third term of the ELBO <br />
 Adjust --alpha and --beta to achive the desired level of sparsity. Consult the paper for more information.
 
-## Usage: MAT-VAE
+## MAT-VAE usage
 To train a new MAT-VAE model:
 ```
 $ cd ./Scripts/Models/
