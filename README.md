@@ -24,7 +24,7 @@ $ cd ./Scripts/Models/
 ```
 then run:
 ```
-python3 hsvae.py --z_reg_weight 0.01 --gamma_reg_weight 0.01 --temperature 0.5  --alpha 4  --beta 1 --iter 1
+python3 hsvae.py --z_reg_weight 0.01 --gamma_reg_weight 0.01 --temperature 0.5  --alpha 4.  --beta 1. --iter 1
 ```
 --z_reg_weight is the weight of the second term of the ELBO <br />
 --gamma_reg_weight is the weight of the third term of the ELBO <br />
@@ -37,7 +37,7 @@ $ cd ./Scripts/Models/
 ```
 then run:
 ```
-python3 mat_vae.py  --alpha 4  --beta 1 --iter 1
+python3 mat_vae.py  --alpha 4.  --beta 1. --iter 1
 ```
 Adjust --alpha (weight on the third term of the ELBO) and --beta (weight on the second term of the ELBO) to achive the desired level of sparsity. Consult the paper for more information.
 
