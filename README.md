@@ -6,9 +6,10 @@ This repository contains an implementation of HSVAE model presented in the "Lear
 2. [Model](#model)
 3. [HSVAE usage](#hsvae-usage)
 4. [MAT-VAE usage](#mat-vae-usage)
-5. [Citing](#citing)
-6. [Licence](#licence)
-7. [Contact info](#contact-info)
+5. [Numerical stability](#numerical-stability)
+6. [Citing](#citing)
+7. [Licence](#licence)
+8. [Contact info](#contact-info)
 
 ## Types of Sparsity
 In this paper we explore adaptive (a.k.a [ephemeral](https://htor.inf.ethz.ch/publications/index.php?pub=407)) sparsity:
@@ -39,6 +40,14 @@ then run:
 python3 mat_vae.py  --alpha 4  --beta 1 --iter 1
 ```
 Adjust --alpha (weight on the third term of the ELBO) and --beta (weight on the second term of the ELBO) to achive the desired level of sparsity. Consult the paper for more information.
+
+## Numerical stability
+During training of a HSVAE model one may experinece a numerical stability problem - the loss functions becomes NaN. We have found it by further experimenting with various architectures of encoder and decoder and dimensions of the latent embeddings. To rectify this problem, consider replacing lines 278 and 279 in hsvae.py  with:
+```
+q_alpha = tfp.math.clip_by_value_preserve_gradient(self.q_alpha(z_param), 0.5, 100)
+q_beta = tfp.math.clip_by_value_preserve_gradient(self.q_beta(z_param), 0.5, 100)
+
+```
 
 ## Citing
 
