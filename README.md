@@ -44,8 +44,8 @@ Adjust --alpha (weight on the third term of the ELBO) and --beta (weight on the 
 ## Numerical stability
 During training of a HSVAE model one may experinece a numerical stability problem - the loss functions becomes NaN. We have found it by further experimenting with various architectures of encoder and decoder and dimensions of the latent embeddings. To rectify this problem, consider replacing lines 278 and 279 in hsvae.py  with:
 ```
-q_alpha = tfp.math.clip_by_value_preserve_gradient(self.q_alpha(z_param), 0.5, 100)
-q_beta = tfp.math.clip_by_value_preserve_gradient(self.q_beta(z_param), 0.5, 100)
+q_alpha = tfp.math.clip_by_value_preserve_gradient(self.q_alpha(output), 0.5, 100)
+q_beta = tfp.math.clip_by_value_preserve_gradient(self.q_beta(output), 0.5, 100)
 
 ```
 
